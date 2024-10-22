@@ -1,5 +1,10 @@
 ﻿namespace Program // added namespace
 {
+    class User
+    {
+        
+    }
+
     class program
     {
         static void Main(string[] args)
