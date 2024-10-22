@@ -2,6 +2,6 @@
 {
     static void Main(string[] args)
     {
-        Console.WriteLine("heelo");
+        Console.WriteLine("hello"); // i updated heelo from hello
     }
 }
