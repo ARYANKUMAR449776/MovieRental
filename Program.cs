@@ -1,7 +1,10 @@
-﻿class program
+﻿namespace Program // added namespace
 {
-    static void Main(string[] args)
+    class program
     {
-        Console.WriteLine("hello"); // i updated heelo from hello
+        static void Main(string[] args)
+        {
+            Console.WriteLine("hello"); // i updated heelo to hello
+        }
     }
 }
