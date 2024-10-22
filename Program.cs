@@ -7,4 +7,11 @@
             Console.WriteLine("hello"); // i updated heelo to hello
         }
     }
+    class test
+    {
+        public test()
+        {
+            Console.WriteLine("ggg");
+        }
+    }
 }
