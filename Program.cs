@@ -21,17 +21,17 @@
         public List<Movie> searchMovieByGenre(string title)
         {
             //TODO:
-            return;
+            return null;
         }
         public List<Movie> searchMovieByTags(string[] tags)
         {
             //TODO:
-            return;
+            return null;
         }
         public List<Movie> searchMovieByArtist(string Artists)
         {
             //TODO:
-            return;
+            return null;
         }
         public void addMovieToFavorites(Movie movie)
         {
