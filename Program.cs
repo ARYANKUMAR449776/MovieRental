@@ -4,6 +4,11 @@
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
+    using CsvHelper;
+    using CsvHelper.Configuration;
+    using System;
+    using System.Globalization;
+    using System.IO;
 
     class User
     {
@@ -88,7 +93,7 @@
 
             if (File.Exists(CredentialsFile))
             {
-                var lines = File.ReadAllLines(CredentialsFile).Skip(1); // Skip header row
+                var lines = File.ReadAllLines(CredentialsFile).Skip(1);
                 foreach (var line in lines)
                 {
                     var parts = line.Split(',');
@@ -117,7 +122,8 @@
 
         public void rentMovie(Movie movie)
         {
-            // TODO: Add logic to rent a movie
+         
+         Rental.IssueNewRental(this, movie);
         }
 
         public List<Movie> searchMovieByGenre(string genre)
@@ -164,19 +170,23 @@
         public int MovieID { get; set; }
         public string Title { get; set; }
         public string Genre { get; set; }
-        public List<string> Artists { get; set; }
+        public string Artist { get; set; }
         public List<string> Tags { get; set; }
         public bool Availability { get; set; }
         public bool IsTrending { get; set; }
-        public string ReleaseDate { get; set; }
+        public DateTime ReleaseDate { get; set; }
         public int RentalCount { get; set; }
 
-        public Movie(int movieID, string title, string genre, string artists, string tags, bool availability, bool isTrending, string releaseDate, int rentalCount)
+        private static readonly string MoviesFile = "movies.csv";
+
+        public Movie() { }
+
+        public Movie(int movieID, string title, string genre, string artist, string tags, bool availability, bool isTrending, DateTime releaseDate, int rentalCount)
         {
             MovieID = movieID;
             Title = title;
             Genre = genre;
-            Artists = new List<string>(artists.Split(','));
+            Artist = artist;
             Tags = new List<string>(tags.Split(','));
             Availability = availability;
             IsTrending = isTrending;
@@ -184,36 +194,119 @@
             RentalCount = rentalCount;
         }
 
-        public void getDetails()
+        public void GetDetails()
         {
-            Console.WriteLine($"Movie ID: {MovieID}");
+            //Console.WriteLine($"Movie ID: {MovieID}");
             Console.WriteLine($"Title: {Title}");
             Console.WriteLine($"Genre: {Genre}");
-            Console.WriteLine($"Artists: {string.Join(", ", Artists)}");
+            Console.WriteLine($"Artist: {Artist}");
             Console.WriteLine($"Tags: {string.Join(", ", Tags)}");
-            Console.WriteLine($"Availability: {Availability}");
-            Console.WriteLine($"Is Trending: {IsTrending}");
-            Console.WriteLine($"Release Date: {ReleaseDate}");
-            Console.WriteLine($"Rental Count: {RentalCount}");
+            //Console.WriteLine($"Availability: {Availability}");
+            //Console.WriteLine($"Is Trending: {IsTrending}");
+            Console.WriteLine($"Release Date: {ReleaseDate.ToShortDateString()}");
+            //Console.WriteLine($"Rental Count: {RentalCount}");
+        }
+    
+    public static List<Movie> LoadMoviesFromCsv()
+    {
+        var movies = new List<Movie>();
+
+        if (!File.Exists(MoviesFile))
+        {
+            Console.WriteLine("Movies file not found. Please ensure 'movies.csv' exists.");
+            return movies;
         }
 
-        public void checkAvailability()
+        using (var reader = new StreamReader(MoviesFile))
+        using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
         {
-            //TODO:
+            try
+            {
+                var records = csv.GetRecords<MovieCsvRecord>();
+
+                foreach (var record in records)
+                {
+                    try
+                    {
+                        var movie = new Movie(
+                            record.MovieID,
+                            record.Title,
+                            record.Genre,
+                            record.Artist,
+                            record.Tags,
+                            record.Availability == 1,
+                            record.IsTrending == 1,
+                            DateTime.Parse(record.ReleaseDate),
+                            record.RentalCount
+                        );
+
+                        movies.Add(movie);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error parsing movie record: {record.Title}");
+                        Console.WriteLine($"Exception: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reading CSV file: {ex.Message}");
+            }
         }
 
-        public void incrementRentalCount()
-        {
-            //TODO:
-        }
+        return movies;
     }
+}
+    public class MovieCsvRecord
+    {
+        public int MovieID { get; set; }
+        public string Title { get; set; }
+        public string Genre { get; set; }
+        public string Artist { get; set; }
+        public string Tags { get; set; }
+        public int Availability { get; set; }
+        public int IsTrending { get; set; }
+        public string ReleaseDate { get; set; }
+        public int RentalCount { get; set; }
+    }
+
 
     class Rental
     {
+       
+        
+        private static string rentalRecord = "rentals.csv";
+        public static void rentalRecordCsvInitialize()
+        {
+            if (!File.Exists(rentalRecord))
+            {
+                using (var createFile = File.CreateText(rentalRecord))
+                {
+                    createFile.WriteLine("UserId, MovieId, MovieName, RentalDate");
+                    Console.WriteLine($"New File created {rentalRecord}");
+                }
+            }
+        }
+
+        public static void IssueNewRental(User user, Movie movie)
+        {
+            using (var writer = new StreamWriter(rentalRecord, append: true))
+            using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+            {
+                csv.WriteField(user.UserID);
+                csv.WriteField(movie.MovieID);
+                csv.WriteField(movie.Title);
+                csv.WriteField(DateTime.Now);
+                csv.NextRecord();
+            }
+        }
+
         public Rental()
         {
             //TODO: Constructor
         }
+        
     }
 
     class Favorites : User
@@ -232,21 +325,23 @@
         }
     }
 
-    //class Suggestion : Movie
-    //{
-    //    public Suggestion()
-    //    {
-    //        //TODO: Constructor
-    //    }
-    //}
+    class Suggestion : Movie
+    {
+        public Suggestion()
+        {
+            //TODO: Constructor
+        }
+    }
 
-    //class TrendingMovies : Movie
-    //{
-    //    public TrendingMovies()
-    //    {
-    //        //TODO: Constructor
-    //    }
-    //}
+    class TrendingMovies : Movie
+    {
+        public TrendingMovies()
+        {
+            //TODO: Constructor
+        }
+    }
+
+
 
     class Program
     {
@@ -260,15 +355,25 @@
 
                 if (input == "signup")
                 {
+                    Console.Clear();
                     User.Signup();
                 }
                 else if (input == "login")
                 {
+                    Console.Clear();
                     bool success = User.Login();
                     if (success)
                     {
                         Console.WriteLine("Logged in successfully!");
-                        // Add logic here for what happens after a successful login
+
+                        // Load and display movies
+                        var movies = Movie.LoadMoviesFromCsv();
+                        Console.WriteLine("Available Movies:");
+                        foreach (var movie in movies)
+                        {
+                            movie.GetDetails();
+                            Console.WriteLine("------------------------");
+                        }
                     }
                 }
 
@@ -277,4 +382,5 @@
             Console.WriteLine("Goodbye!");
         }
     }
+
 }
