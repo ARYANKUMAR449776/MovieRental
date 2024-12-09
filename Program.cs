@@ -24,7 +24,7 @@
 
         public double charges { get; private set; }
 
-        private static readonly string CredentialsFile = "users.csv";
+        public static readonly string CredentialsFile = "users.csv";
 
         public User()
         {
@@ -128,8 +128,22 @@
 
         public List<Movie> searchMovieByGenre(string genre)
         {
-            // TODO: Add logic to search for movies by genre
-            return null;
+            // Load all movies
+            var genreSearchResult = Movie.LoadMoviesFromCsv();
+
+            // Filter movies by genre (case-insensitive)
+            var resultList = genreSearchResult
+                .Where(m => m.Genre.Equals(genre, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            // Print the results
+            foreach (var movie in resultList)
+            {
+                Console.WriteLine($"Title: {movie.Title}, Genre: {movie.Genre}");
+            }
+        
+            // Return the filtered list
+            return resultList;
         }
 
         public List<Movie> searchMovieByTags(string[] tags)
@@ -207,8 +221,8 @@
             //Console.WriteLine($"Rental Count: {RentalCount}");
         }
     
-    public static List<Movie> LoadMoviesFromCsv()
-    {
+        public static List<Movie> LoadMoviesFromCsv()
+        {
         var movies = new List<Movie>();
 
         if (!File.Exists(MoviesFile))
@@ -348,6 +362,8 @@
         static void Main(string[] args)
         {
             string input;
+            User currentUser = null; // Variable to track the logged-in user
+
             do
             {
                 Console.WriteLine("Enter 'signup' to create an account, 'login' to log in, or 'exit' to quit:");
@@ -361,8 +377,7 @@
                 else if (input == "login")
                 {
                     Console.Clear();
-                    bool success = User.Login();
-                    if (success)
+                    if (Login(out currentUser))
                     {
                         Console.WriteLine("Logged in successfully!");
 
@@ -374,13 +389,51 @@
                             movie.GetDetails();
                             Console.WriteLine("------------------------");
                         }
+
+                        Console.WriteLine("\n");
+                        Console.WriteLine("Enter genre to search for a movie:");
+                        var genre = Console.ReadLine();
+                        currentUser.searchMovieByGenre(genre);
                     }
                 }
-
             } while (input != "exit");
 
             Console.WriteLine("Goodbye!");
         }
+
+        private static bool Login(out User loggedInUser)
+        {
+            Console.WriteLine("Enter UserID: ");
+            string userID = Console.ReadLine();
+
+            Console.WriteLine("Enter Password: ");
+            string password = Console.ReadLine();
+
+            if (File.Exists(User.CredentialsFile))
+            {
+                var lines = File.ReadAllLines(User.CredentialsFile).Skip(1);
+                foreach (var line in lines)
+                {
+                    var parts = line.Split(',');
+                    if (parts[0] == userID && parts[3] == password)
+                    {
+                        loggedInUser = new User(
+                            int.Parse(parts[0]), // UserID
+                            parts[1],            // Name
+                            parts[2],            // Email
+                            parts[3]             // Password
+                        );
+                        Console.WriteLine($"Login successful! Welcome, {loggedInUser.Name}.");
+                        return true;
+                    }
+                }
+            }
+
+            Console.WriteLine("Invalid UserID or Password. Please try again.");
+            loggedInUser = null;
+            return false;
+        }
     }
+
 
 }
