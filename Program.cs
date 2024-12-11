@@ -370,6 +370,43 @@
             }
         }
 
+
+        public static void ReturnRental(User user, Movie movie)
+    {
+        // Load all rental records into a list of lines
+        var rentalRecords = File.ReadAllLines(userRentalsFile).Skip(1) // Skip header
+                                .Select(line => line.Split(','))
+                                .ToList();
+
+        // Find the matching rental record
+        var matchingRecord = rentalRecords.FirstOrDefault(record => 
+            int.Parse(record[0]) == user.UserID && 
+            record[2].Equals(movie.Title, StringComparison.OrdinalIgnoreCase));
+
+        if (matchingRecord != null)
+        {
+            // Update availability of the movie back to true
+            UpdateMovieAvailability(movie.MovieID, true);
+
+            // Remove the matching record from rentalRecords
+            rentalRecords.Remove(matchingRecord);
+
+            // Write the updated records back to the file
+            var updatedRecords = new List<string> { "UserId, MovieId, MovieName, RentalDate" }; // Header
+            updatedRecords.AddRange(rentalRecords.Select(record => string.Join(",", record)));
+            File.WriteAllLines(userRentalsFile, updatedRecords);
+
+            Console.WriteLine($"You have successfully returned {movie.Title}.");
+        }
+        else
+        {
+            Console.WriteLine($"You cannot return {movie.Title} as it is not rented by you.");
+        }
+    }
+
+
+
+
         private static void AddRentalToFile(User user, Movie movie)
         {
             using (var writer = new StreamWriter(userRentalsFile, append: true))
@@ -532,7 +569,7 @@
             {
                 using (var createFile = File.CreateText(user_OnHoldMovies))
                 {
-                    createFile.WriteLine("UserId,MovieId,MovieName,HoldDate");
+                    //createFile.WriteLine("UserId,MovieId,MovieName,HoldDate");
                     Console.WriteLine($"New File created {user_OnHoldMovies}");
                 }
             }
@@ -569,6 +606,38 @@
                 csv.WriteField(movie.Title);
                 csv.WriteField(DateTime.Now); // Hold date
                 csv.NextRecord();
+            }
+        }
+
+        public static void removeFromOnHold(User user, Movie movie)
+        {
+            // Load all rental records into a list of lines
+            var onHoldrecord = File.ReadAllLines(user_OnHoldMovies)// Skip header
+                                    .Select(line => line.Split(','))
+                                    .ToList();
+
+            // Find the matching rental record
+            var matchingRecord = onHoldrecord.FirstOrDefault(record =>
+                int.Parse(record[0]) == user.UserID &&
+                record[2].Equals(movie.Title, StringComparison.OrdinalIgnoreCase));
+
+            if (matchingRecord != null)
+            {
+                // Update availability of the movie back to true
+                UpdateMovieAvailability(movie.MovieID, true);
+
+                // Remove the matching record from rentalRecords
+                onHoldrecord.Remove(matchingRecord);
+
+                // Write the updated records back to the file without adding a header
+                var updatedRecords = onHoldrecord.Select(record => string.Join(",", record));
+                File.WriteAllLines(user_OnHoldMovies, updatedRecords);
+
+                Console.WriteLine($"You have successfully removed {movie.Title} from hold.");
+            }
+            else
+            {
+                Console.WriteLine($"You cannot remove {movie.Title} from hold as it is not placed on hold by you.");
             }
         }
 
@@ -786,12 +855,47 @@
                                 }
                             }
 
-                            //else if (command == "return")
-                            //{
-                            //    Console.Clear();
-                            //    Console.WriteLine("Enter the name of the movie that you want to return");
-                            //    string movieToReturn = currentUser.rentedMovies.Select(x => x.Title);
-                            //}
+                            else if (command == "return")
+                            {
+                                Console.Clear();
+                                Console.WriteLine("Enter the title of the movie you want to return:");
+                                string movieTitle = Console.ReadLine();
+
+                                // Search for the movie by title
+                                var movieToReturn = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
+
+                                if (movieToReturn != null)
+                                {
+                                    // Call ReturnRental to process the return
+                                    Rental.ReturnRental(currentUser, movieToReturn);
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Movie not found.");
+                                }
+                            }
+
+                            else if(command == "remove hold")
+                            {
+                                Console.Clear();
+                                Console.WriteLine("Enter the title of the movie you want remove from hold :");
+                                string movieTitle = Console.ReadLine();
+
+                                // Search for the movie by title
+                                var movieToRemoveFromHold = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
+
+                                if (movieToRemoveFromHold != null)
+                                {
+                                    // Call ReturnRental to process the return
+                                   Hold.removeFromOnHold(currentUser, movieToRemoveFromHold);
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Movie not found.");
+                                }
+                            }
+
+
                             else if (command == "logout")
                             {
                                 Console.WriteLine("Logging out...");
