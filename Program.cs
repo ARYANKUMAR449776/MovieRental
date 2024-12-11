@@ -9,6 +9,8 @@
     using System;
     using System.Globalization;
     using System.IO;
+    using System.Reflection.Metadata.Ecma335;
+    using System.Transactions;
 
     class User
     {
@@ -520,11 +522,97 @@
     }
 
 
-    class Hold : User
+    class Hold
     {
-        public Hold()
+        public static readonly string user_OnHoldMovies = "user_OnHoldMovies.csv";
+
+        public static void OnHoldCsvInitialization()
         {
-            //TODO: Constructor
+            if (!File.Exists(user_OnHoldMovies))
+            {
+                using (var createFile = File.CreateText(user_OnHoldMovies))
+                {
+                    createFile.WriteLine("UserId,MovieId,MovieName,HoldDate");
+                    Console.WriteLine($"New File created {user_OnHoldMovies}");
+                }
+            }
+        }
+
+        public static void PlaceOnHold(User user, Movie movie)
+        {
+            // Check if the movie is available for placing on hold
+            if (movie.Availability)
+            {
+                // Add the movie to the on-hold records file
+                AddToOnHoldFile(user, movie);
+
+                // Set the availability of the movie to false in the movies.csv
+                UpdateMovieAvailability(movie.MovieID, false);
+
+                // Notify the user of the successful hold
+                Console.WriteLine($"You have successfully placed {movie.Title} on hold.");
+            }
+            else
+            {
+                // If the movie is not available
+                Console.WriteLine($"{movie.Title} is currently unavailable for hold.");
+            }
+        }
+
+        private static void AddToOnHoldFile(User user, Movie movie)
+        {
+            using (var writer = new StreamWriter(user_OnHoldMovies, append: true))
+            using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+            {
+                csv.WriteField(user.UserID);
+                csv.WriteField(movie.MovieID);
+                csv.WriteField(movie.Title);
+                csv.WriteField(DateTime.Now); // Hold date
+                csv.NextRecord();
+            }
+        }
+
+        private static void UpdateMovieAvailability(int movieID, bool availability)
+        {
+            // Load all movies from the CSV file
+            var movies = Movie.LoadMoviesFromCsv();
+
+            // Find the movie to update by its MovieID
+            var movieToUpdate = movies.FirstOrDefault(m => m.MovieID == movieID);
+
+            if (movieToUpdate != null)
+            {
+                // Update the availability of the found movie
+                movieToUpdate.Availability = availability;
+
+                // Create a list of updated movie records to write to the file
+                var movieRecords = movies.Select(m => new MovieCsvRecord
+                {
+                    MovieID = m.MovieID,
+                    Title = m.Title,
+                    Genre = m.Genre,
+                    Artist = m.Artist,
+                    Tags = string.Join(",", m.Tags), // Ensure tags are correctly joined
+                    Availability = m.Availability ? 1 : 0, // Convert boolean to 1 or 0
+                    IsTrending = m.IsTrending ? 1 : 0,     // Convert boolean to 1 or 0
+                    ReleaseDate = m.ReleaseDate.ToString("yyyy-MM-dd"),
+                    RentalCount = m.RentalCount
+                }).ToList();
+
+                // Write the updated movie list back to the file
+                using (var writer = new StreamWriter(Movie.MoviesFile, false)) // Overwrite the file with the updated content
+                using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+                {
+                    csv.WriteHeader<MovieCsvRecord>(); // Write header for CSV
+                    csv.WriteRecords(movieRecords);    // Write all records including the updated one
+                }
+
+                Console.WriteLine($"Updated availability of movie '{movieToUpdate.Title}' to {availability}.");
+            }
+            else
+            {
+                Console.WriteLine("Movie not found.");
+            }
         }
     }
 
@@ -676,10 +764,34 @@
                                 {
                                     Favorites.DisplayFavorites(currentUser);
                                 }
-                                    
+
                             }
 
+                            else if (command == "place on hold"){
+                                Console.Clear();
+                                Console.WriteLine("Enter the title of the movie you want to place on hold:");
+                                string movieTitle = Console.ReadLine();
 
+                                // Search for the movie by title
+                                var movieToHold = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
+
+                                if (movieToHold != null)
+                                {
+                                    // Call PlaceOnHold to process the hold
+                                    Hold.PlaceOnHold(currentUser, movieToHold);
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Movie not found.");
+                                }
+                            }
+
+                            //else if (command == "return")
+                            //{
+                            //    Console.Clear();
+                            //    Console.WriteLine("Enter the name of the movie that you want to return");
+                            //    string movieToReturn = currentUser.rentedMovies.Select(x => x.Title);
+                            //}
                             else if (command == "logout")
                             {
                                 Console.WriteLine("Logging out...");
