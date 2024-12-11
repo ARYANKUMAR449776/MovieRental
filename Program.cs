@@ -430,13 +430,95 @@
 
 
 
-    class Favorites : User
+    class Favorites
     {
-        public Favorites()
+        private static readonly string FavoritesFile = "favorites.csv";
+
+        public static void InitializeFavoritesFile()
         {
-            //TODO: Constructor
+            if (!File.Exists(FavoritesFile))
+            {
+                using (var createFile = File.CreateText(FavoritesFile))
+                {
+                    createFile.WriteLine("UserID,MovieID,Title,Genre"); // Headers for the CSV file
+                    Console.WriteLine($"New file created: {FavoritesFile}");
+                }
+            }
+        }
+
+        public static void AddToFavorites(User user, Movie movie)
+        {
+            // Check if the movie is already in favorites
+            var favoriteMovies = LoadFavorites(user);
+            if (favoriteMovies.Any(m => m.MovieID == movie.MovieID))
+            {
+                Console.WriteLine($"{movie.Title} is already in your favorites.");
+                return;
+            }
+           
+
+                // Add the movie to the favorites file
+                using (var writer = new StreamWriter(FavoritesFile, append: true))
+                using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+                {
+                    csv.WriteField(user.UserID);
+                    csv.WriteField(movie.MovieID);
+                    csv.WriteField(movie.Title);
+                    csv.WriteField(movie.Genre);
+                    csv.NextRecord();
+                }
+
+                Console.WriteLine($"{movie.Title} has been added to your favorites.");
+            
+        }
+
+        public static List<Movie> LoadFavorites(User user)
+        {
+            var favoriteMovies = new List<Movie>();
+
+            if (!File.Exists(FavoritesFile))
+            {
+                return favoriteMovies; // Return an empty list if the file does not exist
+            }
+
+            var lines = File.ReadAllLines(FavoritesFile).Skip(1); // Skip the header row
+            foreach (var line in lines)
+            {
+                var parts = line.Split(',');
+                int userId = int.Parse(parts[0]);
+                if (userId == user.UserID)
+                {
+                    // Add the movie to the user's favorites
+                    favoriteMovies.Add(new Movie
+                    {
+                        MovieID = int.Parse(parts[1]),
+                        Title = parts[2],
+                        Genre = parts[3]
+                    });
+                }
+            }
+
+            return favoriteMovies;
+        }
+
+        public static void DisplayFavorites(User user)
+        {
+            var favoriteMovies = LoadFavorites(user);
+
+            if (!favoriteMovies.Any())
+            {
+                Console.WriteLine("You have no favorite movies.");
+                return;
+            }
+
+            Console.WriteLine("Your Favorite Movies:");
+            foreach (var movie in favoriteMovies)
+            {
+                Console.WriteLine($"Title: {movie.Title}, Genre: {movie.Genre}");
+            }
         }
     }
+
 
     class Hold : User
     {
@@ -568,6 +650,35 @@
                                     currentUser.ShowRentedMovies(); // Display rented movies for the current user
                                 }
                             }
+
+                            else if (command == "add to favorites")
+                            {
+                                Console.Clear();
+                                Console.WriteLine("Enter the movie title to add to favorites:");
+                                string movieTitle = Console.ReadLine();
+
+                                var searchResults = currentUser.SearchMoviesByTitle(movieTitle);
+                                if (!searchResults.Any())
+                                {
+                                    Console.WriteLine("No movies found with that title.");
+                                }
+                                else
+                                {
+                                    var movieToAdd = searchResults.First();
+                                    Favorites.AddToFavorites(currentUser, movieToAdd);
+                                }
+                            }
+
+                            else if (command == "show favorites")
+                            {
+                                Console.Clear();
+                                if (currentUser != null)
+                                {
+                                    Favorites.DisplayFavorites(currentUser);
+                                }
+                                    
+                            }
+
 
                             else if (command == "logout")
                             {
