@@ -73,7 +73,7 @@
 
             if (IsUserExists(userID, email))
             {
-                Console.WriteLine("UserID or Email already exists. Please try logging in.");
+                Console.WriteLine("UserID or Email already exists. Please try logging in.\n");
                 return;
             }
 
@@ -82,7 +82,7 @@
                 sw.WriteLine($"{userID},{name},{email},{password}");
             }
 
-            Console.WriteLine("Signup successful! You can now log in.");
+            Console.WriteLine("Signup successful! You can now log in.\n");
         }
 
         public static bool Login(out User loggedInUser)
@@ -92,6 +92,7 @@
 
             Console.WriteLine("Enter Password: ");
             string password = Console.ReadLine();
+           
 
             if (File.Exists(CredentialsFile))
             {
@@ -107,12 +108,13 @@
                             parts[2],            // Email
                             parts[3]             // Password
                         );
-                        Console.WriteLine($"Login successful! Welcome, {loggedInUser.Name}.");
+                        Console.Clear();
+                        Console.WriteLine($"Login successful! Welcome, {loggedInUser.Name}.\n");
                         return true;
                     }
                 }
             }
-
+            Console.Clear() ;
             Console.WriteLine("Invalid UserID or Password. Please try again.");
             loggedInUser = null;
             return false;
@@ -220,6 +222,34 @@
                 Console.WriteLine("No rental records found.");
             }
         }
+
+        public int GetRentedMoviesCount()
+        {
+            if (File.Exists(Rental.userRentalsFile))
+            {
+                var rentedMoviesCount = 0;
+                var lines = File.ReadAllLines(Rental.userRentalsFile).Skip(1); // Skip header row
+
+                foreach (var line in lines)
+                {
+                    var parts = line.Split(',');
+                    int userId = int.Parse(parts[0]);
+
+                    if (userId == UserID)
+                    {
+                        rentedMoviesCount++;  // Count the rented movies for this user
+                    }
+                }
+
+                return rentedMoviesCount;
+            }
+            else
+            {
+                Console.WriteLine("No rental records found.");
+                return 0;
+            }
+        }
+
 
 
     }
@@ -352,16 +382,24 @@
         public static void IssueNewRental(User user, Movie movie)
         {
             // Check if the movie is available for rental using the Availability from movies.csv
+            int rentedMoviesCount = user.GetRentedMoviesCount();
             if (movie.Availability)
             {
-                // Rent the movie by adding it to the rentals and user rentals file
-                AddRentalToFile(user, movie);
+                if (rentedMoviesCount >= 4)
+                {
+                    Console.WriteLine("Cant Rent More than 4 movies , Kindly return a movie before renting anything else");
+                }
+                else
+                {
+                    // Rent the movie by adding it to the rentals and user rentals file
+                    AddRentalToFile(user, movie);
 
-                // Set the availability of the movie to false in the movies.csv
-                UpdateMovieAvailability(movie.MovieID, false);
+                    // Set the availability of the movie to false in the movies.csv
+                    UpdateMovieAvailability(movie.MovieID, false);
 
-                // Notify the user of the successful rental
-                Console.WriteLine($"You have successfully rented {movie.Title}.");
+                    // Notify the user of the successful rental
+                    Console.WriteLine($"You have successfully rented {movie.Title}.");
+                }
             }
             else
             {
@@ -372,7 +410,7 @@
 
 
         public static void ReturnRental(User user, Movie movie)
-    {
+        {
         // Load all rental records into a list of lines
         var rentalRecords = File.ReadAllLines(userRentalsFile).Skip(1) // Skip header
                                 .Select(line => line.Split(','))
@@ -433,26 +471,31 @@
                 // Update the availability of the found movie
                 movieToUpdate.Availability = availability;
 
-                // Create a list of updated movie records to write to the file
+                // Prepare movie records to write
                 var movieRecords = movies.Select(m => new MovieCsvRecord
                 {
                     MovieID = m.MovieID,
                     Title = m.Title,
                     Genre = m.Genre,
                     Artist = m.Artist,
-                    Tags = string.Join(",", m.Tags), // Ensure tags are correctly joined
-                    Availability = m.Availability ? 1 : 0, // Convert boolean to 1 or 0
-                    IsTrending = m.IsTrending ? 1 : 0,     // Convert boolean to 1 or 0
-                    ReleaseDate = m.ReleaseDate.ToString("yyyy-MM-dd"),
+                    Tags = string.Join(",", m.Tags),
+                    Availability = m.Availability ? 1 : 0,
+                    IsTrending = m.IsTrending ? 1 : 0,
+                    ReleaseDate = m.ReleaseDate.ToString("MM/dd/yyyy HH:mm"), // Format to match CSV example
                     RentalCount = m.RentalCount
                 }).ToList();
 
-                // Write the updated movie list back to the file
-                using (var writer = new StreamWriter(Movie.MoviesFile, false)) // Overwrite the file with the updated content
+                // Check if the file already exists to avoid rewriting the header
+                bool fileExists = File.Exists(Movie.MoviesFile);
+
+                using (var writer = new StreamWriter(Movie.MoviesFile, false)) // Overwrite the file
                 using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
                 {
-                    csv.WriteHeader<MovieCsvRecord>(); // Write header for CSV
-                    csv.WriteRecords(movieRecords);    // Write all records including the updated one
+                    if (!fileExists) // Write header only if file doesn't exist
+                    {
+                        csv.WriteHeader<MovieCsvRecord>();  // Write header for CSV
+                    }
+                    csv.WriteRecords(movieRecords);     // Write all records including the updated one
                 }
 
                 Console.WriteLine($"Updated availability of movie '{movieToUpdate.Title}' to {availability}.");
@@ -462,6 +505,8 @@
                 Console.WriteLine("Movie not found.");
             }
         }
+
+
 
 
 
@@ -612,7 +657,7 @@
         public static void removeFromOnHold(User user, Movie movie)
         {
             // Load all rental records into a list of lines
-            var onHoldrecord = File.ReadAllLines(user_OnHoldMovies)// Skip header
+            var onHoldrecord = File.ReadAllLines(user_OnHoldMovies).Skip(1)// Skip header////////////////////////////////////////////////////////////////////////////////////////////////TODODODODODODO
                                     .Select(line => line.Split(','))
                                     .ToList();
 
@@ -641,7 +686,7 @@
             }
         }
 
-        private static void UpdateMovieAvailability(int movieID, bool availability)
+        private static void UpdateMovieAvailability(int movieID, bool availability)///////////////////////////TODODDODODDOD
         {
             // Load all movies from the CSV file
             var movies = Movie.LoadMoviesFromCsv();
@@ -687,20 +732,110 @@
 
     class Suggestion : Movie
     {
-        public Suggestion()
+        // Method to display movies with the "Sci-Fi" tag using LINQ and formatting the output
+        public static void DisplaySuggestedMovies()
         {
-            //TODO: Constructor
+            // Load all movies from the CSV
+            var allMovies = Movie.LoadMoviesFromCsv();
+
+            // Use LINQ to filter movies with the "Sci-Fi" tag
+            var sciFiMovies = allMovies
+                .Where(movie => movie.Tags.Any(tag => tag.Equals("Sci-Fi", StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            // Display the filtered movies
+            if (sciFiMovies.Any())
+            {
+                Console.WriteLine("|Suggested Movies|\n");
+  
+                Console.WriteLine("====================================================================");
+                Console.WriteLine($"{"Title",-30} {"Genre",-15} {"Artist",-25} ");
+                Console.WriteLine("====================================================================");
+
+                sciFiMovies.ForEach(movie =>
+                {
+                    Console.WriteLine($"{movie.Title,-30} {movie.Genre,-15} {movie.Artist,-25}");
+                });
+                Console.WriteLine("====================================================================\n");
+            }
+            else
+            {
+                Console.WriteLine("No Suggested movies found.");
+            }
         }
     }
+
+
+
 
     class TrendingMovies : Movie
     {
-        public TrendingMovies()
+        public static void DisplayTrendingMovies()
         {
-            //TODO: Constructor
+            // Load all movies from the CSV
+            var allMovies = Movie.LoadMoviesFromCsv();
+
+            // Use LINQ to filter movies with the "Sci-Fi" tag
+            var trendingMovies = allMovies
+                .Where(movie => movie.IsTrending==true)
+                .ToList();
+
+            // Display the filtered movies
+            if (trendingMovies.Any())
+            {
+                Console.WriteLine("|Trending Movies|\n");
+
+                Console.WriteLine("====================================================================");
+                Console.WriteLine($"{"Title",-30} {"Genre",-15} {"Artist",-25} ");
+                Console.WriteLine("====================================================================");
+
+                trendingMovies.ForEach(movie =>
+                {
+                    Console.WriteLine($"{movie.Title,-30} {movie.Genre,-15} {movie.Artist,-25}");
+                });
+                Console.WriteLine("====================================================================\n");
+            }
+            else
+            {
+                Console.WriteLine("No trending movies found.");
+            }
         }
     }
 
+    class MostRentedMovies : Movie {
+
+        public static void DisplayMostRentedMovies()
+        {
+            // Load all movies from the CSV
+            var allMovies = Movie.LoadMoviesFromCsv();
+
+            // Use LINQ to filter movies with the "Sci-Fi" tag
+            var MostRented = allMovies
+                .Where(movie => movie.RentalCount > 70)
+                .ToList();
+
+            // Display the filtered movies
+            if (MostRented.Any())
+            {
+                Console.WriteLine("|Most rented Movies|\n");
+
+                Console.WriteLine("====================================================================");
+                Console.WriteLine($"{"Title",-30} {"Genre",-15} {"Artist",-25} ");
+                Console.WriteLine("====================================================================");
+
+                MostRented.ForEach(movie =>
+                {
+                    Console.WriteLine($"{movie.Title,-30} {movie.Genre,-15} {movie.Artist,-25}");
+                });
+                Console.WriteLine("====================================================================\n");
+            }
+            else
+            {
+                Console.WriteLine("No Most Rented movies found.");
+            }
+        }
+
+    }
 
 
     class Program
@@ -725,14 +860,26 @@
                     Console.Clear();
                     if (User.Login(out currentUser))
                     {
-                        Console.WriteLine("Logged in successfully!");
-
+                        //Console.WriteLine("Logged in successfully!\n");
+                        Suggestion.DisplaySuggestedMovies();
+                        TrendingMovies.DisplayTrendingMovies();
+                        MostRentedMovies.DisplayMostRentedMovies();
                         string command;
 
                         // After login, allow the user to enter a command
                         do
                         {
-                            Console.WriteLine("Please enter a command (search, logout, rent or exit):");
+                            Console.WriteLine("Available Commands:\n");
+                            Console.WriteLine("{0,-20} {1}", "'search'", "Search for movies by genre, title, artist, or tag.");
+                            Console.WriteLine("{0,-20} {1}", "'rent'", "Enter the title of the movie you wish to rent.");
+                            Console.WriteLine("{0,-20} {1}", "'show rented movies'", "View all movies you have rented.");
+                            Console.WriteLine("{0,-20} {1}", "'add to favorites'", "Add a movie to your favorites list.");
+                            Console.WriteLine("{0,-20} {1}", "'place on hold'", "Place a movie on hold.");// show on hold and favorited
+                            Console.WriteLine("{0,-20} {1}", "'return'", "Return a rented movie.");
+                            Console.WriteLine("{0,-20} {1}", "'remove hold'", "Remove a movie from the hold list.");
+                            Console.WriteLine("{0,-20} {1}", "'logout'", "Log out from the current session.");
+                            Console.WriteLine("{0,-20} {1}", "'exit'", "Exit the application.\n");
+                            Console.WriteLine("Please enter a command:");
                             command = Console.ReadLine().ToLower();
 
                             if (command == "search")
@@ -783,6 +930,7 @@
                             {
                                 Console.Clear();
                                 Console.WriteLine("Enter the title of the movie you want to rent:");
+
                                 string movieTitle = Console.ReadLine();
 
                                 // Search for the movie by title
@@ -900,6 +1048,11 @@
                             {
                                 Console.WriteLine("Logging out...");
                                 currentUser = null; // Log out the user
+                            }
+
+                            else
+                            {
+                                Console.WriteLine("Invalid Command");
                             }
 
                         } while (command != "exit" && currentUser != null);
