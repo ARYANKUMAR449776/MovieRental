@@ -173,6 +173,53 @@
             var tagSearchResult = Movie.LoadMoviesFromCsv();
             return tagSearchResult.Where(m => m.Tags.Any(t => t.Contains(tag, StringComparison.OrdinalIgnoreCase))).ToList();
         }
+
+        public void ShowRentedMovies()
+        {
+            if (File.Exists(Rental.userRentalsFile))
+            {
+                var rentedMovies = new List<Movie>();
+                var lines = File.ReadAllLines(Rental.userRentalsFile).Skip(1); // Skip the header row
+
+                foreach (var line in lines)
+                {
+                    var parts = line.Split(',');
+                    int userId = int.Parse(parts[0]);
+                    int movieId = int.Parse(parts[1]);
+                    string movieName = parts[2];
+
+                    if (userId == UserID)
+                    {
+                        // Find the movie by movieId in the Movie list
+                        var movie = Movie.LoadMoviesFromCsv().FirstOrDefault(m => m.MovieID == movieId);
+
+                        if (movie != null)
+                        {
+                            rentedMovies.Add(movie); // Add movie to rentedMovies list
+                        }
+                    }
+                }
+
+                if (rentedMovies.Count == 0)
+                {
+                    Console.WriteLine("You haven't rented any movies yet.");
+                }
+                else
+                {
+                    Console.WriteLine("Rented Movies:");
+                    foreach (var movie in rentedMovies)
+                    {
+                        Console.WriteLine($"Title: {movie.Title}, Genre: {movie.Genre}, Artist: {movie.Artist}");
+                    }
+                }
+            }
+            else
+            {
+                Console.WriteLine("No rental records found.");
+            }
+        }
+
+
     }
     class Movie
     {
@@ -276,7 +323,7 @@
     class Rental
     {
         private static readonly string rentalRecord = "rentals.csv";
-        private static readonly string userRentalsFile = "user_rentals.csv";  // New CSV to store user rentals
+        public static readonly string userRentalsFile = "user_rentals.csv";  // New CSV to store user rentals
 
         public static void RentalRecordCsvInitialize()
         {
@@ -513,7 +560,14 @@
                                 }
                             }
 
-
+                            else if (command == "show rented movies")
+                            {
+                                Console.Clear();
+                                if (currentUser != null)
+                                {
+                                    currentUser.ShowRentedMovies(); // Display rented movies for the current user
+                                }
+                            }
 
                             else if (command == "logout")
                             {
