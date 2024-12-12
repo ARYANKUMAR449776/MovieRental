@@ -51,38 +51,46 @@
 
         public static void Signup()
         {
-            Console.WriteLine("Enter UserID: ");
-            int userID = int.Parse(Console.ReadLine());
-
-            Console.WriteLine("Enter Name: ");
-            string name = Console.ReadLine();
-
-            Console.WriteLine("Enter Email: ");
-            string email = Console.ReadLine();
-
-            Console.WriteLine("Enter Password: ");
-            string password = Console.ReadLine();
-
-            if (!File.Exists(CredentialsFile))
+            try
             {
-                using (var sw = File.CreateText(CredentialsFile))
+
+
+                Console.WriteLine("Enter UserID: ");
+                int userID = int.Parse(Console.ReadLine());
+
+                Console.WriteLine("Enter Name: ");
+                string name = Console.ReadLine();
+
+                Console.WriteLine("Enter Email: ");
+                string email = Console.ReadLine();
+
+                Console.WriteLine("Enter Password: ");
+                string password = Console.ReadLine();
+
+                if (!File.Exists(CredentialsFile))
                 {
-                    sw.WriteLine("UserID,Name,Email,Password");
+                    using (var sw = File.CreateText(CredentialsFile))
+                    {
+                        sw.WriteLine("UserID,Name,Email,Password");
+                    }
                 }
-            }
 
-            if (IsUserExists(userID, email))
+                if (IsUserExists(userID, email))
+                {
+                    Console.WriteLine("UserID or Email already exists. Please try logging in.\n");
+                    return;
+                }
+
+                using (var sw = File.AppendText(CredentialsFile))
+                {
+                    sw.WriteLine($"{userID},{name},{email},{password}");
+                }
+
+                Console.WriteLine("Signup successful! You can now log in.\n");
+            }catch (Exception ex)
             {
-                Console.WriteLine("UserID or Email already exists. Please try logging in.\n");
-                return;
+                Console.WriteLine("Error occured while signing up. Kindly try again.");
             }
-
-            using (var sw = File.AppendText(CredentialsFile))
-            {
-                sw.WriteLine($"{userID},{name},{email},{password}");
-            }
-
-            Console.WriteLine("Signup successful! You can now log in.\n");
         }
 
         public static bool Login(out User loggedInUser)
@@ -92,27 +100,33 @@
 
             Console.WriteLine("Enter Password: ");
             string password = Console.ReadLine();
-           
-
-            if (File.Exists(CredentialsFile))
+            try
             {
-                var lines = File.ReadAllLines(CredentialsFile).Skip(1);
-                foreach (var line in lines)
+
+
+                if (File.Exists(CredentialsFile))
                 {
-                    var parts = line.Split(',');
-                    if (parts[0] == userID && parts[3] == password)
+                    var lines = File.ReadAllLines(CredentialsFile).Skip(1);
+                    foreach (var line in lines)
                     {
-                        loggedInUser = new User(
-                            int.Parse(parts[0]), // UserID
-                            parts[1],            // Name
-                            parts[2],            // Email
-                            parts[3]             // Password
-                        );
-                        Console.Clear();
-                        Console.WriteLine($"Login successful! Welcome, {loggedInUser.Name}.\n");
-                        return true;
+                        var parts = line.Split(',');
+                        if (parts[0] == userID && parts[3] == password)
+                        {
+                            loggedInUser = new User(
+                                int.Parse(parts[0]), // UserID
+                                parts[1],            // Name
+                                parts[2],            // Email
+                                parts[3]             // Password
+                            );
+                            Console.Clear();
+                            Console.WriteLine($"Login successful! Welcome, {loggedInUser.Name}.\n");
+                            return true;
+                        }
                     }
                 }
+            }catch (Exception ex)
+            {
+                Console.WriteLine("Error occured while logging in. Kindly try again.");
             }
             Console.Clear() ;
             Console.WriteLine("Invalid UserID or Password. Please try again.");
@@ -385,70 +399,89 @@
 
         public static void IssueNewRental(User user, Movie movie)
         {
-            // Check if the movie is available for rental using the Availability from movies.csv
-            var unreleasedmovie = movie.IsUnreleased;
-            int rentedMoviesCount = user.GetRentedMoviesCount();
-            if (movie.Availability)
+            try
             {
-                if (rentedMoviesCount >= 4)
+
+
+                // Check if the movie is available for rental using the Availability from movies.csv
+                var unreleasedmovie = movie.IsUnreleased;
+                int rentedMoviesCount = user.GetRentedMoviesCount();
+                if (movie.Availability)
                 {
-                    Console.WriteLine("Cant Rent More than 4 movies , Kindly return a movie before renting anything else");
-                }
-                else if (unreleasedmovie = true)
-                {
-                    Console.WriteLine("Cant rent an unreleased movie, Kindly use place on hold.");
+                    if (rentedMoviesCount >= 4)
+                    {
+                        Console.WriteLine("Cant Rent More than 4 movies , Kindly return a movie before renting anything else");
+                    }
+                    else if (unreleasedmovie == true)
+                    {
+                        Console.WriteLine("Cant rent an unreleased movie, Kindly use place on hold.");
+                    }
+                    else
+                    {
+                        // Rent the movie by adding it to the rentals and user rentals file
+                        AddRentalToFile(user, movie);
+
+                        // Set the availability of the movie to false in the movies.csv
+                        UpdateMovieAvailability(movie.MovieID, false);
+
+                        // Notify the user of the successful rental
+                        Console.WriteLine($"You have successfully rented {movie.Title}.");
+                    }
                 }
                 else
                 {
-                    // Rent the movie by adding it to the rentals and user rentals file
-                    AddRentalToFile(user, movie);
-
-                    // Set the availability of the movie to false in the movies.csv
-                    UpdateMovieAvailability(movie.MovieID, false);
-
-                    // Notify the user of the successful rental
-                    Console.WriteLine($"You have successfully rented {movie.Title}.");
+                    // If the movie is not available
+                    Console.WriteLine($"{movie.Title} is currently unavailable.");
                 }
+
             }
-            else
+            catch (Exception ex) 
             {
-                // If the movie is not available
-                Console.WriteLine($"{movie.Title} is currently unavailable.");
+                Console.WriteLine("Error issuing a movie, Try again");
             }
         }
 
 
         public static void ReturnRental(User user, Movie movie)
         {
-        // Load all rental records into a list of lines
-        var rentalRecords = File.ReadAllLines(userRentalsFile).Skip(1) // Skip header
-                                .Select(line => line.Split(','))
-                                .ToList();
+            try
+            {
 
-        // Find the matching rental record
-        var matchingRecord = rentalRecords.FirstOrDefault(record => 
-            int.Parse(record[0]) == user.UserID && 
-            record[2].Equals(movie.Title, StringComparison.OrdinalIgnoreCase));
 
-        if (matchingRecord != null)
-        {
-            // Update availability of the movie back to true
-            UpdateMovieAvailability(movie.MovieID, true);
+                // Load all rental records into a list of lines
+                var rentalRecords = File.ReadAllLines(userRentalsFile).Skip(1) // Skip header
+                                        .Select(line => line.Split(','))
+                                        .ToList();
 
-            // Remove the matching record from rentalRecords
-            rentalRecords.Remove(matchingRecord);
+                // Find the matching rental record
+                var matchingRecord = rentalRecords.FirstOrDefault(record =>
+                    int.Parse(record[0]) == user.UserID &&
+                    record[2].Equals(movie.Title, StringComparison.OrdinalIgnoreCase));
 
-            // Write the updated records back to the file
-            var updatedRecords = new List<string> { "UserId, MovieId, MovieName, RentalDate" }; // Header
-            updatedRecords.AddRange(rentalRecords.Select(record => string.Join(",", record)));
-            File.WriteAllLines(userRentalsFile, updatedRecords);
+                if (matchingRecord != null)
+                {
+                    // Update availability of the movie back to true
+                    UpdateMovieAvailability(movie.MovieID, true);
 
-            Console.WriteLine($"You have successfully returned {movie.Title}.");
-        }
-        else
-        {
-            Console.WriteLine($"You cannot return {movie.Title} as it is not rented by you.");
-        }
+                    // Remove the matching record from rentalRecords
+                    rentalRecords.Remove(matchingRecord);
+
+                    // Write the updated records back to the file
+                    var updatedRecords = new List<string> { "UserId, MovieId, MovieName, RentalDate" }; // Header
+                    updatedRecords.AddRange(rentalRecords.Select(record => string.Join(",", record)));
+                    File.WriteAllLines(userRentalsFile, updatedRecords);
+
+                    Console.WriteLine($"You have successfully returned {movie.Title}.");
+                }
+                else
+                {
+                    Console.WriteLine($"You cannot return {movie.Title} as it is not rented by you.");
+                }
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine("Error returning movie , try again.");
+            }
     }
 
 
@@ -542,14 +575,16 @@
 
         public static void AddToFavorites(User user, Movie movie)
         {
-            // Check if the movie is already in favorites
-            var favoriteMovies = LoadFavorites(user);
-            if (favoriteMovies.Any(m => m.MovieID == movie.MovieID))
+            try
             {
-                Console.WriteLine($"{movie.Title} is already in your favorites.");
-                return;
-            }
-           
+                // Check if the movie is already in favorites
+                var favoriteMovies = LoadFavorites(user);
+                if (favoriteMovies.Any(m => m.MovieID == movie.MovieID))
+                {
+                    Console.WriteLine($"{movie.Title} is already in your favorites.");
+                    return;
+                }
+
 
                 // Add the movie to the favorites file
                 using (var writer = new StreamWriter(FavoritesFile, append: true))
@@ -563,6 +598,12 @@
                 }
 
                 Console.WriteLine($"{movie.Title} has been added to your favorites.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error adding a movie to favorites , Try again.");
+            }
+          
             
         }
 
@@ -632,23 +673,32 @@
 
         public static void PlaceOnHold(User user, Movie movie)
         {
-            // Check if the movie is available for placing on hold
-            if (movie.Availability)
-            {
-                // Add the movie to the on-hold records file
-                AddToOnHoldFile(user, movie);
 
-                // Set the availability of the movie to false in the movies.csv
-                UpdateMovieAvailability(movie.MovieID, false);
-
-                // Notify the user of the successful hold
-                Console.WriteLine($"You have successfully placed {movie.Title} on hold.");
-            }
-            else
+            try
             {
-                // If the movie is not available
-                Console.WriteLine($"{movie.Title} is currently unavailable for hold.");
+                // Check if the movie is available for placing on hold
+                if (movie.Availability)
+                {
+                    // Add the movie to the on-hold records file
+                    AddToOnHoldFile(user, movie);
+
+                    // Set the availability of the movie to false in the movies.csv
+                    UpdateMovieAvailability(movie.MovieID, false);
+
+                    // Notify the user of the successful hold
+                    Console.WriteLine($"You have successfully placed {movie.Title} on hold.");
+                }
+                else
+                {
+                    // If the movie is not available
+                    Console.WriteLine($"{movie.Title} is currently unavailable for hold.");
+                }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error placing movie on hold: {ex.Message}");
+            }
+         
         }
 
         private static void AddToOnHoldFile(User user, Movie movie)
@@ -674,48 +724,60 @@
 
         public static void removeFromOnHold(User user, Movie movie)
     {
-        if (!File.Exists(user_OnHoldMovies))
-        {
-            Console.WriteLine("No hold records found.");
-            return;
-        }
 
-        // Load all on-hold records into a list of lines
-        var onHoldRecords = File.ReadAllLines(user_OnHoldMovies)
-                                 .Skip(1) // Skip header
-                                 .Select(line => line.Split(','))
-                                 .ToList();
-
-        // Find the matching hold record
-        var matchingRecord = onHoldRecords.FirstOrDefault(record =>
-            int.Parse(record[0]) == user.UserID &&
-            record[2].Equals(movie.Title, StringComparison.OrdinalIgnoreCase));
-
-        if (matchingRecord != null)
-        {
-            // Update availability of the movie back to true
-            UpdateMovieAvailability(movie.MovieID, true);
-
-            // Remove the matching record from the onHoldRecords
-            onHoldRecords.Remove(matchingRecord);
-
-            // Write the updated records back to the file with a consistent header
-            using (var writer = new StreamWriter(user_OnHoldMovies, false))
+            try
             {
-                writer.WriteLine("UserId,MovieId,MovieName,HoldDate"); // Always include the header
 
-                foreach (var record in onHoldRecords)
+                if (!File.Exists(user_OnHoldMovies))
                 {
-                    writer.WriteLine(string.Join(",", record));
+                    Console.WriteLine("No hold records found.");
+                    return;
+                }
+
+                // Load all on-hold records into a list of lines
+                var onHoldRecords = File.ReadAllLines(user_OnHoldMovies)
+                                         .Skip(1) // Skip header
+                                         .Select(line => line.Split(','))
+                                         .ToList();
+
+                // Find the matching hold record
+                var matchingRecord = onHoldRecords.FirstOrDefault(record =>
+                    int.Parse(record[0]) == user.UserID &&
+                    record[2].Equals(movie.Title, StringComparison.OrdinalIgnoreCase));
+
+                if (matchingRecord != null)
+                {
+                    // Update availability of the movie back to true
+                    UpdateMovieAvailability(movie.MovieID, true);
+
+                    // Remove the matching record from the onHoldRecords
+                    onHoldRecords.Remove(matchingRecord);
+
+                    // Write the updated records back to the file with a consistent header
+                    using (var writer = new StreamWriter(user_OnHoldMovies, false))
+                    {
+                        writer.WriteLine("UserId,MovieId,MovieName,HoldDate"); // Always include the header
+
+                        foreach (var record in onHoldRecords)
+                        {
+                            writer.WriteLine(string.Join(",", record));
+                        }
+                    }
+
+                    Console.WriteLine($"You have successfully removed {movie.Title} from hold.");
+                }
+                else
+                {
+                    Console.WriteLine($"You cannot remove {movie.Title} from hold as it is not placed on hold by you.");
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error removing hold: {ex.Message}");
+            }
 
-            Console.WriteLine($"You have successfully removed {movie.Title} from hold.");
-        }
-        else
-        {
-            Console.WriteLine($"You cannot remove {movie.Title} from hold as it is not placed on hold by you.");
-        }
+
+
     }
 
 
@@ -919,239 +981,248 @@
     {
         static void Main(string[] args)
         {
-            string input;
-            User currentUser = null;
 
-            do
+            try
             {
-                Console.WriteLine("Enter 'signup' to create an account, 'login' to log in, or 'exit' to quit:");
-                input = Console.ReadLine().ToLower();
+                string input;
+                User currentUser = null;
 
-                if (input == "signup")
+                do
                 {
-                    Console.Clear();
-                    User.Signup();
-                }
-                else if (input == "login")
-                {
-                    Console.Clear();
-                    if (User.Login(out currentUser))
+                    Console.WriteLine("Enter 'signup' to create an account, 'login' to log in, or 'exit' to quit:");
+                    input = Console.ReadLine().ToLower();
+
+                    if (input == "signup")
                     {
-                        //Console.WriteLine("Logged in successfully!\n");
-                        Suggestion.DisplaySuggestedMovies();
-                        TrendingMovies.DisplayTrendingMovies();
-                        MostRentedMovies.DisplayMostRentedMovies();
-                        string command;
-
-                        // After login, allow the user to enter a command
-                        do
+                        Console.Clear();
+                        User.Signup();
+                    }
+                    else if (input == "login")
+                    {
+                        Console.Clear();
+                        if (User.Login(out currentUser))
                         {
-                            Console.WriteLine("\n");
-                            Console.WriteLine("Available Commands:\n");
-                            Console.WriteLine("{0,-20} {1}", "'search'", "Search for movies by genre, title, artist, or tag.");
-                            Console.WriteLine("{0,-20} {1}", "'rent'", "Enter the title of the movie you wish to rent.");
-                            Console.WriteLine("{0,-20} {1}", "'show rented movies'", "View all movies you have rented.");
-                            Console.WriteLine("{0,-20} {1}", "'add to favorites'", "Add a movie to your favorites list.");
-                            Console.WriteLine("{0,-20} {1}", "'show favorites'", "Show your favorites list.");
-                            Console.WriteLine("{0,-20} {1}", "'hold'", "Place a movie on hold.");
-                            Console.WriteLine("{0,-20} {1}", "'show hold'", "Show movies on hold.");
-                            Console.WriteLine("{0,-20} {1}", "'return'", "Return a rented movie.");
-                            Console.WriteLine("{0,-20} {1}", "'remove hold'", "Remove a movie from the hold list.");
-                            Console.WriteLine("{0,-20} {1}", "'logout'", "Log out from the current session.");
-                            Console.WriteLine("{0,-20} {1}", "'exit'", "Exit the application.\n");
-                            Console.WriteLine("Please enter a command:");
-                            command = Console.ReadLine().ToLower();
+                            //Console.WriteLine("Logged in successfully!\n");
+                            Suggestion.DisplaySuggestedMovies();
+                            TrendingMovies.DisplayTrendingMovies();
+                            MostRentedMovies.DisplayMostRentedMovies();
+                            string command;
 
-                            if (command == "search")
+                            // After login, allow the user to enter a command
+                            do
                             {
-                                Console.Clear();
-                                Console.WriteLine("Do you want to search by 'genre', 'title', 'artist', or 'tag'?");
-                                string searchCriteria = Console.ReadLine().ToLower();
+                                Console.WriteLine("\n");
+                                Console.WriteLine("Available Commands:\n");
+                                Console.WriteLine("{0,-20} {1}", "'search'", "Search for movies by genre, title, artist, or tag.");
+                                Console.WriteLine("{0,-20} {1}", "'rent'", "Enter the title of the movie you wish to rent.");
+                                Console.WriteLine("{0,-20} {1}", "'show rented movies'", "View all movies you have rented.");
+                                Console.WriteLine("{0,-20} {1}", "'add to favorites'", "Add a movie to your favorites list.");
+                                Console.WriteLine("{0,-20} {1}", "'show favorites'", "Show your favorites list.");
+                                Console.WriteLine("{0,-20} {1}", "'hold'", "Place a movie on hold.");
+                                Console.WriteLine("{0,-20} {1}", "'show hold'", "Show movies on hold.");
+                                Console.WriteLine("{0,-20} {1}", "'return'", "Return a rented movie.");
+                                Console.WriteLine("{0,-20} {1}", "'remove hold'", "Remove a movie from the hold list.");
+                                Console.WriteLine("{0,-20} {1}", "'logout'", "Log out from the current session.");
+                                Console.WriteLine("{0,-20} {1}", "'exit'", "Exit the application.\n");
+                                Console.WriteLine("Please enter a command:");
+                                command = Console.ReadLine().ToLower();
 
-                                Console.WriteLine("Enter the search term:");
-                                string searchTerm = Console.ReadLine();
-
-                                List<Movie> searchResults = new List<Movie>();
-
-                                // Perform the search based on criteria
-                                if (searchCriteria == "genre")
-                                {
-                                    searchResults = currentUser.SearchMoviesByGenre(searchTerm);
-                                }
-                                else if (searchCriteria == "title")
-                                {
-                                    searchResults = currentUser.SearchMoviesByTitle(searchTerm);
-                                }
-                                else if (searchCriteria == "artist")
-                                {
-                                    searchResults = currentUser.SearchMoviesByArtist(searchTerm);
-                                }
-                                else if (searchCriteria == "tag")
-                                {
-                                    searchResults = currentUser.SearchMoviesByTag(searchTerm);
-                                }
-
-                                // Display search results
-                                if (searchResults.Any())
+                                if (command == "search")
                                 {
                                     Console.Clear();
-                                    Console.WriteLine("Search Results:");
-                                    foreach (var movie in searchResults)
+                                    Console.WriteLine("Do you want to search by 'genre', 'title', 'artist', or 'tag'?");
+                                    string searchCriteria = Console.ReadLine().ToLower();
+
+                                    Console.WriteLine("Enter the search term:");
+                                    string searchTerm = Console.ReadLine();
+
+                                    List<Movie> searchResults = new List<Movie>();
+
+                                    // Perform the search based on criteria
+                                    if (searchCriteria == "genre")
                                     {
-                                        Console.WriteLine($"Title: {movie.Title}, Genre: {movie.Genre}, Artist: {movie.Artist}, Tags: {string.Join(", ", movie.Tags)}");
+                                        searchResults = currentUser.SearchMoviesByGenre(searchTerm);
+                                    }
+                                    else if (searchCriteria == "title")
+                                    {
+                                        searchResults = currentUser.SearchMoviesByTitle(searchTerm);
+                                    }
+                                    else if (searchCriteria == "artist")
+                                    {
+                                        searchResults = currentUser.SearchMoviesByArtist(searchTerm);
+                                    }
+                                    else if (searchCriteria == "tag")
+                                    {
+                                        searchResults = currentUser.SearchMoviesByTag(searchTerm);
+                                    }
+
+                                    // Display search results
+                                    if (searchResults.Any())
+                                    {
+                                        Console.Clear();
+                                        Console.WriteLine("Search Results:");
+                                        foreach (var movie in searchResults)
+                                        {
+                                            Console.WriteLine($"Title: {movie.Title}, Genre: {movie.Genre}, Artist: {movie.Artist}, Tags: {string.Join(", ", movie.Tags)}");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("No movies found.");
                                     }
                                 }
+
+                                else if (command == "rent")
+                                {
+                                    Console.Clear();
+                                    Console.WriteLine("Enter the title of the movie you want to rent:");
+
+                                    string movieTitle = Console.ReadLine();
+
+                                    // Search for the movie by title
+                                    var movieToRent = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
+
+                                    if (movieToRent != null)
+                                    {
+                                        // If the movie is found, rent it
+                                        Rental.IssueNewRental(currentUser, movieToRent);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Movie not found.");
+                                    }
+                                }
+
+                                else if (command == "show rented movies")
+                                {
+                                    Console.Clear();
+                                    if (currentUser != null)
+                                    {
+                                        currentUser.ShowRentedMovies(); // Display rented movies for the current user
+                                    }
+                                }
+
+                                else if (command == "add to favorites")
+                                {
+                                    Console.Clear();
+                                    Console.WriteLine("Enter the movie title to add to favorites:");
+                                    string movieTitle = Console.ReadLine();
+
+                                    var searchResults = currentUser.SearchMoviesByTitle(movieTitle);
+                                    if (!searchResults.Any())
+                                    {
+                                        Console.WriteLine("No movies found with that title.");
+                                    }
+                                    else
+                                    {
+                                        var movieToAdd = searchResults.First();
+                                        Favorites.AddToFavorites(currentUser, movieToAdd);
+                                    }
+                                }
+
+                                else if (command == "show favorites")
+                                {
+                                    Console.Clear();
+                                    if (currentUser != null)
+                                    {
+                                        Favorites.DisplayFavorites(currentUser);
+                                    }
+
+                                }
+
+                                else if (command == "hold")
+                                {
+                                    Console.Clear();
+                                    Console.WriteLine("Enter the title of the movie you want to place on hold:");
+                                    string movieTitle = Console.ReadLine();
+
+                                    // Search for the movie by title
+                                    var movieToHold = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
+
+                                    if (movieToHold != null)
+                                    {
+                                        // Call PlaceOnHold to process the hold
+                                        Hold.PlaceOnHold(currentUser, movieToHold);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Movie not found.");
+                                    }
+                                }
+
+                                else if (command == "show hold")
+                                {
+                                    Console.Clear();
+                                    Hold.ShowOnHoldMovies(currentUser);
+                                }
+
+                                else if (command == "return")
+                                {
+                                    Console.Clear();
+                                    Console.WriteLine("Enter the title of the movie you want to return:");
+                                    string movieTitle = Console.ReadLine();
+
+                                    // Search for the movie by title
+                                    var movieToReturn = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
+
+                                    if (movieToReturn != null)
+                                    {
+                                        // Call ReturnRental to process the return
+                                        Rental.ReturnRental(currentUser, movieToReturn);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Movie not found.");
+                                    }
+                                }
+
+                                else if (command == "remove hold")
+                                {
+                                    Console.Clear();
+                                    Console.WriteLine("Enter the title of the movie you want remove from hold :");
+                                    string movieTitle = Console.ReadLine();
+
+                                    // Search for the movie by title
+                                    var movieToRemoveFromHold = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
+
+                                    if (movieToRemoveFromHold != null)
+                                    {
+                                        // Call ReturnRental to process the return
+                                        Hold.removeFromOnHold(currentUser, movieToRemoveFromHold);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Movie not found.");
+                                    }
+                                }
+
+
+                                else if (command == "logout")
+                                {
+                                    Console.WriteLine("Logging out...");
+                                    currentUser = null; // Log out the user
+                                }
+
                                 else
                                 {
-                                    Console.WriteLine("No movies found.");
-                                }
-                            }
-
-                            else if (command == "rent")
-                            {
-                                Console.Clear();
-                                Console.WriteLine("Enter the title of the movie you want to rent:");
-
-                                string movieTitle = Console.ReadLine();
-
-                                // Search for the movie by title
-                                var movieToRent = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
-
-                                if (movieToRent != null)
-                                {
-                                    // If the movie is found, rent it
-                                    Rental.IssueNewRental(currentUser, movieToRent);
-                                }
-                                else
-                                {
-                                    Console.WriteLine("Movie not found.");
-                                }
-                            }
-
-                            else if (command == "show rented movies")
-                            {
-                                Console.Clear();
-                                if (currentUser != null)
-                                {
-                                    currentUser.ShowRentedMovies(); // Display rented movies for the current user
-                                }
-                            }
-
-                            else if (command == "add to favorites")
-                            {
-                                Console.Clear();
-                                Console.WriteLine("Enter the movie title to add to favorites:");
-                                string movieTitle = Console.ReadLine();
-
-                                var searchResults = currentUser.SearchMoviesByTitle(movieTitle);
-                                if (!searchResults.Any())
-                                {
-                                    Console.WriteLine("No movies found with that title.");
-                                }
-                                else
-                                {
-                                    var movieToAdd = searchResults.First();
-                                    Favorites.AddToFavorites(currentUser, movieToAdd);
-                                }
-                            }
-
-                            else if (command == "show favorites")
-                            {
-                                Console.Clear();
-                                if (currentUser != null)
-                                {
-                                    Favorites.DisplayFavorites(currentUser);
+                                    Console.Clear();
+                                    Console.WriteLine("Invalid Command");
                                 }
 
-                            }
-
-                            else if (command == "hold"){
-                                Console.Clear();
-                                Console.WriteLine("Enter the title of the movie you want to place on hold:");
-                                string movieTitle = Console.ReadLine();
-
-                                // Search for the movie by title
-                                var movieToHold = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
-
-                                if (movieToHold != null)
-                                {
-                                    // Call PlaceOnHold to process the hold
-                                    Hold.PlaceOnHold(currentUser, movieToHold);
-                                }
-                                else
-                                {
-                                    Console.WriteLine("Movie not found.");
-                                }
-                            }
-
-                            else if (command == "show hold")
-                            {
-                                Console.Clear();
-                                Hold.ShowOnHoldMovies(currentUser);
-                            }
-
-                            else if (command == "return")
-                            {
-                                Console.Clear();
-                                Console.WriteLine("Enter the title of the movie you want to return:");
-                                string movieTitle = Console.ReadLine();
-
-                                // Search for the movie by title
-                                var movieToReturn = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
-
-                                if (movieToReturn != null)
-                                {
-                                    // Call ReturnRental to process the return
-                                    Rental.ReturnRental(currentUser, movieToReturn);
-                                }
-                                else
-                                {
-                                    Console.WriteLine("Movie not found.");
-                                }
-                            }
-
-                            else if(command == "remove hold")
-                            {
-                                Console.Clear();
-                                Console.WriteLine("Enter the title of the movie you want remove from hold :");
-                                string movieTitle = Console.ReadLine();
-
-                                // Search for the movie by title
-                                var movieToRemoveFromHold = currentUser.SearchMoviesByTitle(movieTitle).FirstOrDefault();
-
-                                if (movieToRemoveFromHold != null)
-                                {
-                                    // Call ReturnRental to process the return
-                                   Hold.removeFromOnHold(currentUser, movieToRemoveFromHold);
-                                }
-                                else
-                                {
-                                    Console.WriteLine("Movie not found.");
-                                }
-                            }
-
-
-                            else if (command == "logout")
-                            {
-                                Console.WriteLine("Logging out...");
-                                currentUser = null; // Log out the user
-                            }
-
-                            else
-                            {
-                                Console.Clear();
-                                Console.WriteLine("Invalid Command");
-                            }
-
-                        } while (command != "exit" && currentUser != null);
+                            } while (command != "exit" && currentUser != null);
+                        }
                     }
-                }
-            } while (input != "exit");
+                } while (input != "exit");
 
-            Console.WriteLine("Goodbye!");
+                Console.WriteLine("Goodbye!");
+            }
+            catch
+            (Exception ex)
+            {
+                Console.WriteLine("An error occured , Please Try Again");
+            }
         }
+
     }
-
-
 }
 
