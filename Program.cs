@@ -614,7 +614,7 @@
             {
                 using (var createFile = File.CreateText(user_OnHoldMovies))
                 {
-                    //createFile.WriteLine("UserId,MovieId,MovieName,HoldDate");
+                    createFile.WriteLine("UserId,MovieId,MovieName,HoldDate"); // Ensure header is added during initialization
                     Console.WriteLine($"New File created {user_OnHoldMovies}");
                 }
             }
@@ -643,9 +643,17 @@
 
         private static void AddToOnHoldFile(User user, Movie movie)
         {
+            bool fileExists = File.Exists(user_OnHoldMovies);
+
             using (var writer = new StreamWriter(user_OnHoldMovies, append: true))
             using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
             {
+                if (!fileExists || new FileInfo(user_OnHoldMovies).Length == 0) // Check if the file is empty
+                {
+                    csv.WriteHeader<OnHoldRecord>(); // Write the header
+                    csv.NextRecord();
+                }
+
                 csv.WriteField(user.UserID);
                 csv.WriteField(movie.MovieID);
                 csv.WriteField(movie.Title);
@@ -655,38 +663,53 @@
         }
 
         public static void removeFromOnHold(User user, Movie movie)
+    {
+        if (!File.Exists(user_OnHoldMovies))
         {
-            // Load all rental records into a list of lines
-            var onHoldrecord = File.ReadAllLines(user_OnHoldMovies).Skip(1)// Skip header////////////////////////////////////////////////////////////////////////////////////////////////TODODODODODODO
-                                    .Select(line => line.Split(','))
-                                    .ToList();
-
-            // Find the matching rental record
-            var matchingRecord = onHoldrecord.FirstOrDefault(record =>
-                int.Parse(record[0]) == user.UserID &&
-                record[2].Equals(movie.Title, StringComparison.OrdinalIgnoreCase));
-
-            if (matchingRecord != null)
-            {
-                // Update availability of the movie back to true
-                UpdateMovieAvailability(movie.MovieID, true);
-
-                // Remove the matching record from rentalRecords
-                onHoldrecord.Remove(matchingRecord);
-
-                // Write the updated records back to the file without adding a header
-                var updatedRecords = onHoldrecord.Select(record => string.Join(",", record));
-                File.WriteAllLines(user_OnHoldMovies, updatedRecords);
-
-                Console.WriteLine($"You have successfully removed {movie.Title} from hold.");
-            }
-            else
-            {
-                Console.WriteLine($"You cannot remove {movie.Title} from hold as it is not placed on hold by you.");
-            }
+            Console.WriteLine("No hold records found.");
+            return;
         }
 
-        private static void UpdateMovieAvailability(int movieID, bool availability)///////////////////////////TODODDODODDOD
+        // Load all on-hold records into a list of lines
+        var onHoldRecords = File.ReadAllLines(user_OnHoldMovies)
+                                 .Skip(1) // Skip header
+                                 .Select(line => line.Split(','))
+                                 .ToList();
+
+        // Find the matching hold record
+        var matchingRecord = onHoldRecords.FirstOrDefault(record =>
+            int.Parse(record[0]) == user.UserID &&
+            record[2].Equals(movie.Title, StringComparison.OrdinalIgnoreCase));
+
+        if (matchingRecord != null)
+        {
+            // Update availability of the movie back to true
+            UpdateMovieAvailability(movie.MovieID, true);
+
+            // Remove the matching record from the onHoldRecords
+            onHoldRecords.Remove(matchingRecord);
+
+            // Write the updated records back to the file with a consistent header
+            using (var writer = new StreamWriter(user_OnHoldMovies, false))
+            {
+                writer.WriteLine("UserId,MovieId,MovieName,HoldDate"); // Always include the header
+
+                foreach (var record in onHoldRecords)
+                {
+                    writer.WriteLine(string.Join(",", record));
+                }
+            }
+
+            Console.WriteLine($"You have successfully removed {movie.Title} from hold.");
+        }
+        else
+        {
+            Console.WriteLine($"You cannot remove {movie.Title} from hold as it is not placed on hold by you.");
+        }
+    }
+
+
+        private static void UpdateMovieAvailability(int movieID, bool availability)
         {
             // Load all movies from the CSV file
             var movies = Movie.LoadMoviesFromCsv();
@@ -699,26 +722,31 @@
                 // Update the availability of the found movie
                 movieToUpdate.Availability = availability;
 
-                // Create a list of updated movie records to write to the file
+                // Prepare movie records to write
                 var movieRecords = movies.Select(m => new MovieCsvRecord
                 {
                     MovieID = m.MovieID,
                     Title = m.Title,
                     Genre = m.Genre,
                     Artist = m.Artist,
-                    Tags = string.Join(",", m.Tags), // Ensure tags are correctly joined
-                    Availability = m.Availability ? 1 : 0, // Convert boolean to 1 or 0
-                    IsTrending = m.IsTrending ? 1 : 0,     // Convert boolean to 1 or 0
-                    ReleaseDate = m.ReleaseDate.ToString("yyyy-MM-dd"),
+                    Tags = string.Join(",", m.Tags),
+                    Availability = m.Availability ? 1 : 0,
+                    IsTrending = m.IsTrending ? 1 : 0,
+                    ReleaseDate = m.ReleaseDate.ToString("MM/dd/yyyy HH:mm"), // Format to match CSV example
                     RentalCount = m.RentalCount
                 }).ToList();
 
-                // Write the updated movie list back to the file
-                using (var writer = new StreamWriter(Movie.MoviesFile, false)) // Overwrite the file with the updated content
+                // Check if the file already exists to avoid rewriting the header
+                bool fileExists = File.Exists(Movie.MoviesFile);
+
+                using (var writer = new StreamWriter(Movie.MoviesFile, false)) // Overwrite the file
                 using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
                 {
-                    csv.WriteHeader<MovieCsvRecord>(); // Write header for CSV
-                    csv.WriteRecords(movieRecords);    // Write all records including the updated one
+                    if (!fileExists) // Write header only if file doesn't exist
+                    {
+                        csv.WriteHeader<MovieCsvRecord>();  // Write header for CSV
+                    }
+                    csv.WriteRecords(movieRecords);     // Write all records including the updated one
                 }
 
                 Console.WriteLine($"Updated availability of movie '{movieToUpdate.Title}' to {availability}.");
@@ -728,6 +756,15 @@
                 Console.WriteLine("Movie not found.");
             }
         }
+
+        private class OnHoldRecord
+        {
+            public int UserID { get; set; }
+            public int MovieID { get; set; }
+            public string MovieName { get; set; }
+            public DateTime HoldDate { get; set; }
+        }
+
     }
 
     class Suggestion : Movie
