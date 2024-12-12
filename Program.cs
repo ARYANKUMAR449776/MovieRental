@@ -262,6 +262,7 @@
         public List<string> Tags { get; set; }
         public bool Availability { get; set; }
         public bool IsTrending { get; set; }
+        public bool IsUnreleased { get; set; }
         public DateTime ReleaseDate { get; set; }
         public int RentalCount { get; set; }
 
@@ -269,7 +270,7 @@
 
         public Movie() { }
 
-        public Movie(int movieID, string title, string genre, string artist, string tags, bool availability, bool isTrending, DateTime releaseDate, int rentalCount)
+        public Movie(int movieID, string title, string genre, string artist, string tags, bool availability, bool isTrending, bool isUnreleased, DateTime releaseDate, int rentalCount)
         {
             MovieID = movieID;
             Title = title;
@@ -278,6 +279,7 @@
             Tags = new List<string>(tags.Split(','));
             Availability = availability;
             IsTrending = isTrending;
+            IsUnreleased = isUnreleased;
             ReleaseDate = releaseDate;
             RentalCount = rentalCount;
         }
@@ -316,6 +318,7 @@
                                 record.Tags,
                                 record.Availability == 1,
                                 record.IsTrending == 1,
+                                record.IsUnreleased == 1,
                                 DateTime.Parse(record.ReleaseDate),
                                 record.RentalCount
                             );
@@ -347,6 +350,7 @@
         public string Tags { get; set; }
         public int Availability { get; set; }
         public int IsTrending { get; set; }
+        public int IsUnreleased { get; set; }
         public string ReleaseDate { get; set; }
         public int RentalCount { get; set; }
     }
@@ -382,12 +386,17 @@
         public static void IssueNewRental(User user, Movie movie)
         {
             // Check if the movie is available for rental using the Availability from movies.csv
+            var unreleasedmovie = movie.IsUnreleased;
             int rentedMoviesCount = user.GetRentedMoviesCount();
             if (movie.Availability)
             {
                 if (rentedMoviesCount >= 4)
                 {
                     Console.WriteLine("Cant Rent More than 4 movies , Kindly return a movie before renting anything else");
+                }
+                else if (unreleasedmovie = true)
+                {
+                    Console.WriteLine("Cant rent an unreleased movie, Kindly use place on hold.");
                 }
                 else
                 {
@@ -481,6 +490,7 @@
                     Tags = string.Join(",", m.Tags),
                     Availability = m.Availability ? 1 : 0,
                     IsTrending = m.IsTrending ? 1 : 0,
+                    IsUnreleased = m.IsUnreleased ? 1 : 0,
                     ReleaseDate = m.ReleaseDate.ToString("MM/dd/yyyy HH:mm"), // Format to match CSV example
                     RentalCount = m.RentalCount
                 }).ToList();
@@ -732,6 +742,7 @@
                     Tags = string.Join(",", m.Tags),
                     Availability = m.Availability ? 1 : 0,
                     IsTrending = m.IsTrending ? 1 : 0,
+                    IsUnreleased = m.IsUnreleased ? 1 : 0,
                     ReleaseDate = m.ReleaseDate.ToString("MM/dd/yyyy HH:mm"), // Format to match CSV example
                     RentalCount = m.RentalCount
                 }).ToList();
@@ -756,6 +767,35 @@
                 Console.WriteLine("Movie not found.");
             }
         }
+
+        public static void ShowOnHoldMovies(User user)
+        {
+            if (!File.Exists(Hold.user_OnHoldMovies))
+            {
+                Console.WriteLine("There are no hold records.");
+                return;
+            }
+
+            // Read all on-hold records
+            var onHoldRecords = File.ReadAllLines(Hold.user_OnHoldMovies)
+                                     .Skip(1) // Skip header
+                                     .Select(line => line.Split(','))
+                                     .Where(record => int.Parse(record[0]) == user.UserID) // Filter by UserID
+                                     .ToList();
+
+            if (!onHoldRecords.Any())
+            {
+                Console.WriteLine("You have no movies on hold.");
+                return;
+            }
+
+            Console.WriteLine("Movies you have placed on hold:");
+            foreach (var record in onHoldRecords)
+            {
+                Console.WriteLine($" {record[2]} (Hold Date: {record[3]})");
+            }
+        }
+
 
         private class OnHoldRecord
         {
@@ -906,12 +946,15 @@
                         // After login, allow the user to enter a command
                         do
                         {
+                            Console.WriteLine("\n");
                             Console.WriteLine("Available Commands:\n");
                             Console.WriteLine("{0,-20} {1}", "'search'", "Search for movies by genre, title, artist, or tag.");
                             Console.WriteLine("{0,-20} {1}", "'rent'", "Enter the title of the movie you wish to rent.");
                             Console.WriteLine("{0,-20} {1}", "'show rented movies'", "View all movies you have rented.");
                             Console.WriteLine("{0,-20} {1}", "'add to favorites'", "Add a movie to your favorites list.");
-                            Console.WriteLine("{0,-20} {1}", "'place on hold'", "Place a movie on hold.");// show on hold and favorited
+                            Console.WriteLine("{0,-20} {1}", "'show favorites'", "Show your favorites list.");
+                            Console.WriteLine("{0,-20} {1}", "'hold'", "Place a movie on hold.");
+                            Console.WriteLine("{0,-20} {1}", "'show hold'", "Show movies on hold.");
                             Console.WriteLine("{0,-20} {1}", "'return'", "Return a rented movie.");
                             Console.WriteLine("{0,-20} {1}", "'remove hold'", "Remove a movie from the hold list.");
                             Console.WriteLine("{0,-20} {1}", "'logout'", "Log out from the current session.");
@@ -951,6 +994,7 @@
                                 // Display search results
                                 if (searchResults.Any())
                                 {
+                                    Console.Clear();
                                     Console.WriteLine("Search Results:");
                                     foreach (var movie in searchResults)
                                     {
@@ -1021,7 +1065,7 @@
 
                             }
 
-                            else if (command == "place on hold"){
+                            else if (command == "hold"){
                                 Console.Clear();
                                 Console.WriteLine("Enter the title of the movie you want to place on hold:");
                                 string movieTitle = Console.ReadLine();
@@ -1038,6 +1082,12 @@
                                 {
                                     Console.WriteLine("Movie not found.");
                                 }
+                            }
+
+                            else if (command == "show hold")
+                            {
+                                Console.Clear();
+                                Hold.ShowOnHoldMovies(currentUser);
                             }
 
                             else if (command == "return")
@@ -1089,6 +1139,7 @@
 
                             else
                             {
+                                Console.Clear();
                                 Console.WriteLine("Invalid Command");
                             }
 
