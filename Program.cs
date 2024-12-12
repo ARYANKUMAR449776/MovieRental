@@ -28,6 +28,12 @@
 
         public static readonly string CredentialsFile = "users.csv";
 
+        public static List<T> SearchBy<T>(List<T> items, Func<T, bool> predicate)
+        {
+            return items.Where(predicate).ToList();
+        }
+
+
         public User()
         {
             rentedMovies = new List<Movie>();
@@ -170,27 +176,28 @@
 
         public List<Movie> SearchMoviesByGenre(string genre)
         {
-            var genreSearchResult = Movie.LoadMoviesFromCsv();
-            return genreSearchResult.Where(m => m.Genre.Equals(genre, StringComparison.OrdinalIgnoreCase)).ToList();
+            var allMovies = Movie.LoadMoviesFromCsv();
+            return SearchBy(allMovies, m => m.Genre.Equals(genre, StringComparison.OrdinalIgnoreCase));
         }
 
         public List<Movie> SearchMoviesByTitle(string title)
         {
-            var titleSearchResult = Movie.LoadMoviesFromCsv();
-            return titleSearchResult.Where(m => m.Title.Contains(title, StringComparison.OrdinalIgnoreCase)).ToList();
+            var allMovies = Movie.LoadMoviesFromCsv();
+            return SearchBy(allMovies, m => m.Title.Contains(title, StringComparison.OrdinalIgnoreCase));
         }
 
         public List<Movie> SearchMoviesByArtist(string artist)
         {
-            var artistSearchResult = Movie.LoadMoviesFromCsv();
-            return artistSearchResult.Where(m => m.Artist.Contains(artist, StringComparison.OrdinalIgnoreCase)).ToList();
+            var allMovies = Movie.LoadMoviesFromCsv();
+            return SearchBy(allMovies, m => m.Artist.Contains(artist, StringComparison.OrdinalIgnoreCase));
         }
 
         public List<Movie> SearchMoviesByTag(string tag)
         {
-            var tagSearchResult = Movie.LoadMoviesFromCsv();
-            return tagSearchResult.Where(m => m.Tags.Any(t => t.Contains(tag, StringComparison.OrdinalIgnoreCase))).ToList();
+            var allMovies = Movie.LoadMoviesFromCsv();
+            return SearchBy(allMovies, m => m.Tags.Any(t => t.Contains(tag, StringComparison.OrdinalIgnoreCase)));
         }
+
 
         public void ShowRentedMovies()
         {
@@ -541,7 +548,7 @@
                     csv.WriteRecords(movieRecords);     // Write all records including the updated one
                 }
 
-                Console.WriteLine($"Updated availability of movie '{movieToUpdate.Title}' to {availability}.");
+                //Console.WriteLine($"Updated availability of movie '{movieToUpdate.Title}' to {availability}.");// debugging statement
             }
             else
             {
@@ -559,6 +566,8 @@
 
     class Favorites
     {
+
+
         private static readonly string FavoritesFile = "favorites.csv";
 
         public static void InitializeFavoritesFile()
@@ -573,7 +582,7 @@
             }
         }
 
-        public static void AddToFavorites(User user, Movie movie)
+        public static async Task AddToFavorites(User user, Movie movie)
         {
             try
             {
@@ -585,27 +594,21 @@
                     return;
                 }
 
-
-                // Add the movie to the favorites file
+                // Add the movie to the favorites file asynchronously
                 using (var writer = new StreamWriter(FavoritesFile, append: true))
-                using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
                 {
-                    csv.WriteField(user.UserID);
-                    csv.WriteField(movie.MovieID);
-                    csv.WriteField(movie.Title);
-                    csv.WriteField(movie.Genre);
-                    csv.NextRecord();
+                    // Writing to the file asynchronously
+                    await writer.WriteLineAsync($"{user.UserID},{movie.MovieID},{movie.Title},{movie.Genre}");
                 }
 
                 Console.WriteLine($"{movie.Title} has been added to your favorites.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error adding a movie to favorites , Try again.");
+                Console.WriteLine("Error adding a movie to favorites. Try again.");
             }
-          
-            
         }
+
 
         public static List<Movie> LoadFavorites(User user)
         {
@@ -822,7 +825,7 @@
                     csv.WriteRecords(movieRecords);     // Write all records including the updated one
                 }
 
-                Console.WriteLine($"Updated availability of movie '{movieToUpdate.Title}' to {availability}.");
+                //Console.WriteLine($"Updated availability of movie '{movieToUpdate.Title}' to {availability}.");/debug statement
             }
             else
             {
@@ -1030,8 +1033,23 @@
                                 if (command == "search")
                                 {
                                     Console.Clear();
-                                    Console.WriteLine("Do you want to search by 'genre', 'title', 'artist', or 'tag'?");
-                                    string searchCriteria = Console.ReadLine().ToLower();
+                                    // Keep asking the user for valid input until it is correct
+                                    string searchCriteria = "";
+
+                                    while (true)
+                                    {
+                                        Console.WriteLine("Do you want to search by 'genre', 'title', 'artist', or 'tag'?");
+                                        searchCriteria = Console.ReadLine().ToLower();
+
+                                        if (searchCriteria == "genre" || searchCriteria == "title" || searchCriteria == "artist" || searchCriteria == "tag")
+                                        {
+                                            break;  // Break the loop if a valid search criteria is entered
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine("Invalid search criteria. Please enter a valid option.");
+                                        }
+                                    }
 
                                     Console.WriteLine("Enter the search term:");
                                     string searchTerm = Console.ReadLine();
@@ -1055,6 +1073,8 @@
                                     {
                                         searchResults = currentUser.SearchMoviesByTag(searchTerm);
                                     }
+
+                                    
 
                                     // Display search results
                                     if (searchResults.Any())
